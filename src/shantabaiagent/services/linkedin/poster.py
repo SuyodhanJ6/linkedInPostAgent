@@ -6,6 +6,8 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import logging
+from selenium.webdriver.common.action_chains import ActionChains
+from src.shantabaiagent.services.linkedin.utils import START_POST_SELECTORS, POST_FIELD_SELECTORS, POST_BUTTON_SELECTORS
 
 class LinkedInPoster:
     def __init__(self):
@@ -48,22 +50,90 @@ class LinkedInPoster:
         try:
             # Go to feed page
             self.driver.get('https://www.linkedin.com/feed/')
+            time.sleep(5)
+            
+            # Start post button handling remains the same...
+            start_post_selectors = START_POST_SELECTORS
+            
+            start_post_button = None
+            for selector in start_post_selectors:
+                try:
+                    start_post_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
+                    break
+                except:
+                    continue
+                    
+            if not start_post_button:
+                raise Exception("Could not find Start a post button")
+                
+            start_post_button.click()
             time.sleep(3)
             
-            # Click post button
-            post_button = self.driver.find_element(By.CSS_SELECTOR, "button.artdeco-button.artdeco-button--muted")
-            post_button.click()
+            # Updated post field handling with more specific selectors and actions
+            post_field_selectors = POST_FIELD_SELECTORS
+            
+            post_field = None
+            for selector in post_field_selectors:
+                try:
+                    post_field = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+                    # Try to ensure the element is actually interactable
+                    self.driver.execute_script("arguments[0].scrollIntoView(true);", post_field)
+                    time.sleep(1)
+                    post_field.click()  # Ensure focus
+                    break
+                except:
+                    continue
+                    
+            if not post_field:
+                raise Exception("Could not find post input field")
+            
+            # Try multiple methods to input text
+            try:
+                # Method 1: Direct send_keys
+                post_field.send_keys(content)
+            except:
+                try:
+                    # Method 2: JavaScript executor
+                    self.driver.execute_script("arguments[0].innerHTML = arguments[1]", post_field, content)
+                except:
+                    try:
+                        # Method 3: ActionChains
+                        actions = ActionChains(self.driver)
+                        actions.move_to_element(post_field)
+                        actions.click()
+                        actions.send_keys(content)
+                        actions.perform()
+                    except Exception as e:
+                        raise Exception(f"Failed to input text: {str(e)}")
+            
             time.sleep(2)
             
-            # Enter content
-            post_field = self.driver.find_element(By.CSS_SELECTOR, "div.ql-editor")
-            post_field.send_keys(content)
-            time.sleep(2)
+            # Updated Post button handling with more specific selectors
+            post_button_selectors = POST_BUTTON_SELECTORS
             
-            # Click share button
-            share_button = self.driver.find_element(By.CSS_SELECTOR, "button.share-actions__primary-action")
-            share_button.click()
-            time.sleep(3)
+            post_button = None
+            for selector in post_button_selectors:
+                try:
+                    post_button = self.wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
+                    # Ensure button is actually clickable
+                    if post_button.is_enabled() and post_button.is_displayed():
+                        break
+                except:
+                    continue
+                    
+            if not post_button:
+                raise Exception("Could not find Post button")
+            
+            # Try multiple methods to click the Post button
+            try:
+                post_button.click()
+            except:
+                try:
+                    self.driver.execute_script("arguments[0].click();", post_button)
+                except Exception as e:
+                    raise Exception(f"Failed to click Post button: {str(e)}")
+            
+            time.sleep(5)
             
             return True
             
